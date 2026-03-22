@@ -1,6 +1,7 @@
 import logging
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from app.config import settings
@@ -31,15 +32,23 @@ async def on_ready():
     log.info("Bot is ready.")
 
 
-@bot.command()
-async def ping(ctx: commands.Context):
-    await ctx.send("Pong!")
+@app_commands.command(name="ping", description="Check if the bot is alive")
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("Pong!")
 
 
 async def load_cogs():
     for cog in COGS:
         await bot.load_extension(cog)
         log.info("Loaded cog: %s", cog)
+
+
+async def sync_commands():
+    guild = discord.Object(id=settings.DISCORD_GUILD_ID)
+    bot.tree.add_command(ping)
+    bot.tree.copy_global_to(guild=guild)
+    synced = await bot.tree.sync(guild=guild)
+    log.info("Synced %d slash commands to guild %s", len(synced), settings.DISCORD_GUILD_ID)
 
 
 def run():
@@ -51,6 +60,7 @@ def run():
     @bot.event
     async def setup_hook():
         await load_cogs()
+        await sync_commands()
 
     bot.run(settings.DISCORD_BOT_TOKEN)
 
