@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 
 from app.database import async_session
+from app.models import NoXPChannel
 from app.services.cooldown import (
     can_gain_xp,
     check_hourly_cap,
@@ -35,6 +36,11 @@ class XPCog(commands.Cog):
         user_id = message.author.id
         guild_id = message.guild.id
         content = message.content.strip()
+
+        # No-XP channel check
+        async with async_session() as session:
+            if await session.get(NoXPChannel, (guild_id, message.channel.id)):
+                return
 
         # Too short
         if len(content) < MIN_MSG_LENGTH:

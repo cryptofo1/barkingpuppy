@@ -17,6 +17,7 @@ COGS = [
     "app.cogs.daily",
     "app.cogs.leaderboard",
     "app.cogs.rank",
+    "app.cogs.admin",
 ]
 
 
