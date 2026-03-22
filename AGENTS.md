@@ -4,24 +4,23 @@
 
 ### Overview
 
-BarkingPuppy is a Discord gamification bot (Python 3.12 + discord.py + async SQLAlchemy + Redis).
+BarkingPuppy is a Discord gamification bot (Python 3.12, discord.py, async SQLAlchemy + asyncpg, Redis, pydantic-settings).
 
 ### Dependencies
 
-- **Python packages:** `pip install -r requirements.txt` (discord.py, sqlalchemy[asyncio], aiosqlite, redis, python-dotenv).
-- **Redis server:** Must be running on `localhost:6379` (default). Install via `apt-get install redis-server`, start with `redis-server --daemonize yes`.
-- **Linter:** `ruff` — install with `pip install ruff`, run with `python3 -m ruff check .`.
+- `pip install -r requirements.txt` installs: discord.py, python-dotenv, sqlalchemy, asyncpg, redis, pydantic-settings.
+- PostgreSQL must be running for the database (default: `localhost:5432/barkingpuppy`).
+- Redis must be running on `localhost:6379`.
 
 ### Running / Testing
 
-- **Smoke tests (no Discord token needed):** `python3 tests/test_startup.py` and `python3 tests/test_bot_setup.py`.
-- **Lint:** `python3 -m ruff check .`
-- **Run the bot:** `python3 main.py` — requires `DISCORD_TOKEN` env var (or `.env` file).
-- The bot uses SQLite by default (`bot.db` in the working directory). Set `DATABASE_URL` to override.
+- **Lint:** `python3 -m ruff check .` (install ruff separately: `pip install ruff`).
+- **Create tables:** `python create_tables.py` (requires a running Postgres instance).
+- **Run bot:** `python -c "from app.bot import run; run()"` — requires `DISCORD_TOKEN` in `.env`.
+- Config is loaded via pydantic-settings from `.env` — see `.env.example` for required vars.
 
 ### Non-obvious caveats
 
-- `ruff` installs to `~/.local/bin/` which may not be on `PATH`; invoke via `python3 -m ruff` to be safe.
-- Redis must be started before the bot; `init_redis()` in `setup_hook` will fail with a connection error otherwise.
-- The bot calls `tree.sync()` on startup, which syncs slash commands globally. This can take up to an hour to propagate in Discord. For faster testing, change to guild-specific sync.
-- `aiosqlite` is the async driver for SQLite; swap `DATABASE_URL` to `postgresql+asyncpg://…` for Postgres (add `asyncpg` to requirements).
+- `asyncpg` is the async Postgres driver; SQLite is not used. A running Postgres instance is required.
+- `ruff` is not in `requirements.txt` — install it as a dev tool (`pip install ruff`).
+- `.env` is gitignored; copy `.env.example` and fill in real values.
