@@ -12,6 +12,10 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+COGS = [
+    "app.cogs.xp",
+]
+
 
 @bot.event
 async def on_ready():
@@ -27,11 +31,22 @@ async def ping(ctx: commands.Context):
     await ctx.send("Pong!")
 
 
+async def load_cogs():
+    for cog in COGS:
+        await bot.load_extension(cog)
+        log.info("Loaded cog: %s", cog)
+
+
 def run():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    @bot.event
+    async def setup_hook():
+        await load_cogs()
+
     bot.run(settings.DISCORD_BOT_TOKEN)
 
 
