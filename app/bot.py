@@ -18,6 +18,7 @@ COGS = [
     "app.cogs.leaderboard",
     "app.cogs.rank",
     "app.cogs.admin",
+    "app.cogs.voice",
 ]
 
 
