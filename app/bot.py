@@ -9,7 +9,6 @@ log = logging.getLogger("barkingpuppy")
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -23,9 +22,18 @@ async def on_ready():
     log.info("Bot is ready.")
 
 
+@bot.command()
+async def ping(ctx: commands.Context):
+    await ctx.send("Pong!")
+
+
 def run():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    bot.run(settings.DISCORD_TOKEN)
+    bot.run(settings.DISCORD_BOT_TOKEN)
+
+
+if __name__ == "__main__":
+    run()
