@@ -13,6 +13,7 @@ from app.services.cooldown import (
     is_spam_locked,
     track_spam,
 )
+from app.services.level_roles import apply_level_roles
 from app.services.leveling import add_xp
 
 log = logging.getLogger("barkingpuppy.xp")
@@ -76,10 +77,11 @@ class XPCog(commands.Cog):
         async with async_session() as session:
             user, leveled_up = await add_xp(session, user_id, guild_id, xp)
 
-        if leveled_up:
-            await message.channel.send(
-                f"🎉 {message.author.mention} reached **level {user.level}**!"
-            )
+            if leveled_up:
+                await message.channel.send(
+                    f"🎉 {message.author.mention} reached **level {user.level}**!"
+                )
+                await apply_level_roles(session, message.author, guild_id, user.level)
 
 
 async def setup(bot: commands.Bot) -> None:
