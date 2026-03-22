@@ -22,6 +22,16 @@ log = logging.getLogger("barkingpuppy.xp")
 MIN_MSG_LENGTH = 4
 
 
+def length_multiplier(content: str) -> float:
+    """Scale XP by message length."""
+    length = len(content)
+    if length <= 20:
+        return 0.5
+    if length <= 100:
+        return 1.0
+    return 1.2
+
+
 class XPCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -35,7 +45,6 @@ class XPCog(commands.Cog):
         guild_id = message.guild.id
         content = message.content.strip()
 
-        # No-XP channel check
         async with async_session() as session:
             if await session.get(NoXPChannel, (guild_id, message.channel.id)):
                 return
@@ -57,12 +66,11 @@ class XPCog(commands.Cog):
         if not await can_gain_xp(user_id, guild_id, cooldown=cfg.message_cooldown):
             return
 
-        multiplier = await get_diminishing_multiplier(user_id, guild_id)
-        if multiplier <= 0:
-            return
+        diminishing = await get_diminishing_multiplier(user_id, guild_id)
+        length_mult = length_multiplier(content)
 
         raw_xp = random.randint(cfg.xp_min, cfg.xp_max)
-        xp = int(raw_xp * multiplier)
+        xp = int(raw_xp * diminishing * length_mult)
         if xp <= 0:
             return
 

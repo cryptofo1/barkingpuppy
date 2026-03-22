@@ -14,6 +14,7 @@ class User(Base):
     xp: Mapped[int] = mapped_column(Integer, default=0)
     points: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[int] = mapped_column(Integer, default=0)
+    daily_streak: Mapped[int] = mapped_column(Integer, default=0)
     last_daily_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -24,7 +25,7 @@ class GuildConfig(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     xp_min: Mapped[int] = mapped_column(Integer, default=15)
     xp_max: Mapped[int] = mapped_column(Integer, default=25)
-    message_cooldown: Mapped[int] = mapped_column(Integer, default=60)
+    message_cooldown: Mapped[int] = mapped_column(Integer, default=30)
     daily_points: Mapped[int] = mapped_column(Integer, default=100)
     hourly_xp_cap: Mapped[int] = mapped_column(Integer, default=300)
 
@@ -35,7 +36,7 @@ class GuildConfig(Base):
         if self.xp_max is None:
             self.xp_max = 25
         if self.message_cooldown is None:
-            self.message_cooldown = 60
+            self.message_cooldown = 30
         if self.daily_points is None:
             self.daily_points = 100
         if self.hourly_xp_cap is None:
