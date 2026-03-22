@@ -14,6 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 COGS = [
     "app.cogs.xp",
+    "app.cogs.daily",
 ]
 
 
