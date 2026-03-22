@@ -5,10 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from app.database import async_session
-from app.models import User
-from app.services.leveling import _get_or_create
+from app.services.leveling import get_guild_config, get_or_create_user
 
-DAILY_POINTS = 100
 DAILY_COOLDOWN = timedelta(hours=24)
 
 
@@ -24,8 +22,8 @@ class DailyCog(commands.Cog):
         now = datetime.now(timezone.utc)
 
         async with async_session() as session:
-            user = await session.get(User, (user_id, guild_id))
-            user = _get_or_create(session, user, user_id, guild_id)
+            user = await get_or_create_user(session, user_id, guild_id)
+            cfg = await get_guild_config(session, guild_id)
 
             if user.last_daily_at is not None:
                 last = user.last_daily_at.replace(tzinfo=timezone.utc)
@@ -40,12 +38,12 @@ class DailyCog(commands.Cog):
                     )
                     return
 
-            user.points += DAILY_POINTS
+            user.points += cfg.daily_points
             user.last_daily_at = now.replace(tzinfo=None)
             await session.commit()
 
         await interaction.response.send_message(
-            f"✅ You claimed **{DAILY_POINTS} points**! Total: **{user.points:,}**."
+            f"✅ You claimed **{cfg.daily_points:,} points**! Total: **{user.points:,}**."
         )
 
 

@@ -15,12 +15,10 @@ from app.services.cooldown import (
     track_spam,
 )
 from app.services.level_roles import apply_level_roles
-from app.services.leveling import add_xp
+from app.services.leveling import add_xp, get_guild_config
 
 log = logging.getLogger("barkingpuppy.xp")
 
-XP_MIN = 15
-XP_MAX = 25
 MIN_MSG_LENGTH = 4
 
 
@@ -41,45 +39,37 @@ class XPCog(commands.Cog):
         async with async_session() as session:
             if await session.get(NoXPChannel, (guild_id, message.channel.id)):
                 return
+            cfg = await get_guild_config(session, guild_id)
 
-        # Too short
         if len(content) < MIN_MSG_LENGTH:
             return
 
-        # Spam locked
         if await is_spam_locked(user_id, guild_id):
             return
 
-        # Track spam — lock if threshold exceeded
         if await track_spam(user_id, guild_id):
             log.info("Spam lock: user %s in guild %s", user_id, guild_id)
             return
 
-        # Duplicate message
         if await is_duplicate(user_id, guild_id, content):
             return
 
-        # 60s cooldown
-        if not await can_gain_xp(user_id, guild_id):
+        if not await can_gain_xp(user_id, guild_id, cooldown=cfg.message_cooldown):
             return
 
-        # Diminishing returns
         multiplier = await get_diminishing_multiplier(user_id, guild_id)
         if multiplier <= 0:
             return
 
-        # Roll XP and apply multiplier
-        raw_xp = random.randint(XP_MIN, XP_MAX)
+        raw_xp = random.randint(cfg.xp_min, cfg.xp_max)
         xp = int(raw_xp * multiplier)
         if xp <= 0:
             return
 
-        # Hourly cap
-        xp = await check_hourly_cap(user_id, guild_id, xp)
+        xp = await check_hourly_cap(user_id, guild_id, xp, cap=cfg.hourly_xp_cap)
         if xp <= 0:
             return
 
-        # Grant XP
         async with async_session() as session:
             user, leveled_up = await add_xp(session, user_id, guild_id, xp)
 

@@ -5,8 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from app.database import async_session
-from app.models import GuildConfig, NoXPChannel
-from app.services.leveling import add_points
+from app.models import NoXPChannel
+from app.services.leveling import add_points, get_or_create_config
 
 log = logging.getLogger("barkingpuppy.admin")
 
@@ -54,10 +54,7 @@ class AdminCog(commands.Cog):
             return
 
         async with async_session() as session:
-            cfg = await session.get(GuildConfig, interaction.guild.id)
-            if cfg is None:
-                cfg = GuildConfig(guild_id=interaction.guild.id)
-                session.add(cfg)
+            cfg = await get_or_create_config(session, interaction.guild.id)
             cfg.xp_min = min_xp
             cfg.xp_max = max_xp
             await session.commit()
@@ -83,10 +80,7 @@ class AdminCog(commands.Cog):
             return
 
         async with async_session() as session:
-            cfg = await session.get(GuildConfig, interaction.guild.id)
-            if cfg is None:
-                cfg = GuildConfig(guild_id=interaction.guild.id)
-                session.add(cfg)
+            cfg = await get_or_create_config(session, interaction.guild.id)
             cfg.daily_points = amount
             await session.commit()
 

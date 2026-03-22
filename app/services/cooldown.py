@@ -4,11 +4,9 @@ from app.config import settings
 
 _redis: redis.Redis | None = None
 
-COOLDOWN_SECONDS = 60
 SPAM_WINDOW = 30
 SPAM_THRESHOLD = 5
 SPAM_LOCK_SECONDS = 120
-HOURLY_XP_CAP = 300
 DIMINISHING_WINDOW = 600  # 10 minutes
 
 
@@ -19,13 +17,13 @@ async def get_redis() -> redis.Redis:
     return _redis
 
 
-async def can_gain_xp(user_id: int, guild_id: int) -> bool:
+async def can_gain_xp(user_id: int, guild_id: int, cooldown: int = 60) -> bool:
     """Return True if the user is off cooldown. Sets cooldown if True."""
     r = await get_redis()
     key = f"xp_cd:{guild_id}:{user_id}"
     if await r.exists(key):
         return False
-    await r.set(key, 1, ex=COOLDOWN_SECONDS)
+    await r.set(key, 1, ex=cooldown)
     return True
 
 
@@ -74,12 +72,14 @@ async def get_diminishing_multiplier(user_id: int, guild_id: int) -> float:
     return 0.0
 
 
-async def check_hourly_cap(user_id: int, guild_id: int, amount: int) -> int:
+async def check_hourly_cap(
+    user_id: int, guild_id: int, amount: int, cap: int = 300
+) -> int:
     """Return the XP the user can actually gain under the hourly cap."""
     r = await get_redis()
     key = f"xp_hr:{guild_id}:{user_id}"
     earned = int(await r.get(key) or 0)
-    remaining = max(0, HOURLY_XP_CAP - earned)
+    remaining = max(0, cap - earned)
     granted = min(amount, remaining)
     if granted > 0:
         pipe = r.pipeline()

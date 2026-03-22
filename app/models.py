@@ -28,6 +28,19 @@ class GuildConfig(Base):
     daily_points: Mapped[int] = mapped_column(Integer, default=100)
     hourly_xp_cap: Mapped[int] = mapped_column(Integer, default=300)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.xp_min is None:
+            self.xp_min = 15
+        if self.xp_max is None:
+            self.xp_max = 25
+        if self.message_cooldown is None:
+            self.message_cooldown = 60
+        if self.daily_points is None:
+            self.daily_points = 100
+        if self.hourly_xp_cap is None:
+            self.hourly_xp_cap = 300
+
 
 class LevelRole(Base):
     __tablename__ = "level_roles"
