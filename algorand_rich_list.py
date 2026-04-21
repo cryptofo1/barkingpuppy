@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import array
 import heapq
 import json
 import math
@@ -18,6 +19,7 @@ from typing import Iterable, List
 
 
 DEFAULT_THRESHOLDS = [0.01, 1.0, 5.0, 10.0]
+DEFAULT_ACCOUNT_PERCENTILES = [0.01, 0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0]
 ALGO_DECIMALS = 6
 ALGO_UNIT = "ALGO"
 MAX_RETRIES = 5
@@ -172,6 +174,46 @@ def _print_report(
         print(f"{idx} | {holder.address} | {format_units(holder.amount, decimals)} | {share:.4f}%")
 
 
+def _compute_percentile_cutoffs(amounts: List[int] | array.array, percentiles: List[float]) -> List[tuple[float, int, int]]:
+    if not percentiles:
+        return []
+    holder_count = len(amounts)
+    if holder_count == 0:
+        return []
+    try:
+        import numpy as np  # pylint: disable=import-outside-toplevel
+    except ImportError:  # pragma: no cover
+        sorted_amounts = sorted(amounts, reverse=True)
+        rows = []
+        for pct in percentiles:
+            account_count = max(1, math.ceil(holder_count * (pct / 100.0)))
+            rows.append((pct, account_count, sorted_amounts[account_count - 1]))
+        return rows
+
+    np_amounts = np.frombuffer(amounts, dtype=np.uint64) if isinstance(amounts, array.array) else np.array(amounts, dtype=np.uint64)
+    account_counts = [max(1, math.ceil(holder_count * (pct / 100.0))) for pct in percentiles]
+    partition_indexes = [holder_count - n for n in account_counts]
+    partitioned = np.partition(np_amounts.copy(), partition_indexes)
+    rows = []
+    for pct, account_count, idx in zip(percentiles, account_counts, partition_indexes):
+        rows.append((pct, account_count, int(partitioned[idx])))
+    return rows
+
+
+def _print_account_percentile_table(
+    percentiles: List[float], rows: List[tuple[float, int, int]], decimals: int, unit: str
+) -> None:
+    if not percentiles:
+        return
+    print()
+    print("Percentage # Accounts Balance equals (or greater than)")
+    print("Percentile | # Accounts | Balance (or greater)")
+    print("---------- | ---------- | --------------------")
+    for pct, account_count, cutoff in rows:
+        unit_suffix = f" {unit}" if unit else ""
+        print(f"{pct:g}% | {account_count:,} | {format_units(cutoff, decimals)}{unit_suffix}")
+
+
 def format_units(amount: int, decimals: int) -> str:
     if decimals <= 0:
         return f"{amount:,}"
@@ -199,6 +241,7 @@ def run_asset(
     indexer_url: str,
     basis: str,
     thresholds: Iterable[float],
+    account_percentiles: List[float],
     page_size: int,
 ) -> None:
     asset = get_asset(asset_id, indexer_url=indexer_url)
@@ -238,6 +281,13 @@ def run_asset(
         threshold_counts=threshold_counts,
         top_holders=top_holders,
     )
+    percentile_rows = _compute_percentile_cutoffs([h.amount for h in holders], account_percentiles)
+    _print_account_percentile_table(
+        percentiles=account_percentiles,
+        rows=percentile_rows,
+        decimals=decimals,
+        unit=unit,
+    )
 
 
 def run_algo(
@@ -245,6 +295,7 @@ def run_algo(
     algod_url: str,
     basis: str,
     thresholds: List[float],
+    account_percentiles: List[float],
     page_size: int,
     balance_field: str,
 ) -> None:
@@ -258,11 +309,14 @@ def run_algo(
     basis_amount = total_money if basis == "network-total" else 0
     min_balances = [math.ceil(basis_amount * (t / 100.0)) for t in thresholds] if basis == "network-total" else []
     threshold_counts = [0 for _ in thresholds]
+    all_amounts = array.array("Q") if account_percentiles else None
 
     for holder in iterate_algo_holders(indexer_url, page_size=page_size, balance_field=balance_field):
         holder_count += 1
         circulating += holder.amount
         _update_top_holders(top_heap, holder)
+        if all_amounts is not None:
+            all_amounts.append(holder.amount)
         if basis == "network-total":
             for idx, min_balance in enumerate(min_balances):
                 if holder.amount >= min_balance:
@@ -299,6 +353,13 @@ def run_algo(
         threshold_counts=threshold_counts,
         top_holders=top_holders,
     )
+    percentile_rows = _compute_percentile_cutoffs(all_amounts or [], account_percentiles)
+    _print_account_percentile_table(
+        percentiles=account_percentiles,
+        rows=percentile_rows,
+        decimals=ALGO_DECIMALS,
+        unit=ALGO_UNIT,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -326,6 +387,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated percentage thresholds. Example: 0.01,1,5,10",
     )
     parser.add_argument(
+        "--account-percentiles",
+        default=",".join(str(x) for x in DEFAULT_ACCOUNT_PERCENTILES),
+        help=(
+            "Comma-separated account percentile rows for cutoff table. "
+            "Example: 0.01,0.1,0.2,0.5,1,2,3,4,5,10"
+        ),
+    )
+    parser.add_argument(
         "--page-size",
         default=1000,
         type=int,
@@ -351,6 +420,7 @@ def main() -> int:
 
     try:
         thresholds = parse_thresholds(args.thresholds)
+        account_percentiles = parse_thresholds(args.account_percentiles)
         if args.asset_id == 0:
             if args.basis == "asset-total":
                 raise ValueError("For ALGO (asset-id 0), basis must be circulating or network-total.")
@@ -359,6 +429,7 @@ def main() -> int:
                 algod_url=args.algod_url,
                 basis=args.basis,
                 thresholds=thresholds,
+                account_percentiles=account_percentiles,
                 page_size=args.page_size,
                 balance_field=args.algo_balance_field,
             )
@@ -370,6 +441,7 @@ def main() -> int:
                 indexer_url=args.indexer_url,
                 basis=args.basis,
                 thresholds=thresholds,
+                account_percentiles=account_percentiles,
                 page_size=args.page_size,
             )
     except Exception as exc:  # pylint: disable=broad-except
