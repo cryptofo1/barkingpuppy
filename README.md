@@ -14,3 +14,8 @@ The page lets you load the generated JSON and renders:
 
 - Holder distribution by minimum supply threshold
 - "Percentage # Accounts Balance equals (or greater than)" table
+
+Notes:
+
+- `ui/sample-rich-list.json` now defaults to an ALGO sample preview.
+- `ui/sample-yldy-rich-list.json` is included as an alternate token sample.

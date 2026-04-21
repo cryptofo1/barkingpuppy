@@ -1,133 +1,133 @@
 {
-  "asset_id": 226701642,
-  "asset_name": "Yieldly",
-  "asset_unit": "YLDY",
+  "asset_id": 0,
+  "asset_name": "Algorand",
+  "asset_unit": "ALGO",
   "indexer_url": "https://mainnet-idx.algonode.cloud",
   "decimals": 6,
-  "holder_count": 29274,
-  "circulating": 10000000000000000,
-  "configured_total_supply": 10000000000000000,
-  "basis": "circulating",
-  "basis_label": "live circulating balances",
-  "basis_amount": 10000000000000000,
+  "holder_count": 21928231,
+  "circulating": 9999864988338023,
+  "configured_total_supply": 9671634982416032,
+  "basis": "network-total",
+  "basis_label": "network total money",
+  "basis_amount": 9671634982416032,
   "threshold_rows": [
     {
       "threshold_percent": 0.01,
-      "minimum_balance": 1000000000000,
-      "holders": 455,
-      "holder_percent": 1.5542802486848397
+      "minimum_balance": 967163498242,
+      "holders": 489,
+      "holder_percent": 0.0022300020462206914
     },
     {
       "threshold_percent": 1.0,
-      "minimum_balance": 100000000000000,
-      "holders": 13,
-      "holder_percent": 0.04440800710528114
+      "minimum_balance": 96716349824161,
+      "holders": 19,
+      "holder_percent": 8.66462962744236e-05
     },
     {
       "threshold_percent": 5.0,
-      "minimum_balance": 500000000000000,
-      "holders": 4,
-      "holder_percent": 0.013664002186240351
+      "minimum_balance": 483581749120802,
+      "holders": 1,
+      "holder_percent": 4.5603313828643996e-06
     },
     {
       "threshold_percent": 10.0,
-      "minimum_balance": 1000000000000000,
-      "holders": 1,
-      "holder_percent": 0.0034160005465600878
+      "minimum_balance": 967163498241604,
+      "holders": 0,
+      "holder_percent": 0.0
     }
   ],
   "top_holders": [
     {
-      "address": "FMBXOFAQCSAD4UWU4Q7IX5AV4FRV6AKURJQYGXLW3CTPTQ7XBX6MALMSPY",
-      "amount": 3239706903743672
+      "address": "N2C374IRX7HEX2YEQWJBTRSVRHRUV4ZSF76S54WV4COTHRUNYRCI47R3WU",
+      "amount": 704145548982138
     },
     {
-      "address": "ICXDQ2U5WCLKMATENE2B43AMEHFHBQGTM7IUJUDWBSW5NWDYUIX6T2CTNI",
-      "amount": 710781242833392
+      "address": "E7O4QOCFC4WV5Y4AV552NPGFEQKFREX7BOI2MB4OTLTNEZSV4VVEDLAXJM",
+      "amount": 280000008996042
     },
     {
-      "address": "KX6S647W6BEN6XHEJVMXK3UYLVNGT2Q6PHQSF5AA2JSSDFSOX7R4MESXRY",
-      "amount": 585804379451310
+      "address": "XHXDKTI7O5EKIKPNUIWLFDMIJGHX2KBIXI7VT6L47LV5NSHWP7HDVDZZNY",
+      "amount": 230194959406051
     },
     {
-      "address": "M3IAMWFYEIJWLWFIIOEDFOLGIVMEOB3F4I3CA4BIAHJENHUUSX63APOXXM",
-      "amount": 503232359232484
+      "address": "MTCEM5YJJSYGW2RCXYXGE4SXLSPUUEJKQAWG2GUX6CNN72KQ3XPJCM6NOI",
+      "amount": 228868639175203
     },
     {
-      "address": "UIUHZ2IDTBO7JOZHKZVAQVTTKAZJFVZ66FUCDDFZCTJPWEWRHE7XIRCACY",
-      "amount": 494300955756645
+      "address": "RH7F44VSLAHQHTXWO6FPLJVG77QUYZIHGAKMNGN6CIFMWI22WALTMLXVAI",
+      "amount": 210286816023188
     },
     {
-      "address": "VTO4WOPIS4TAYYECOZXS6LHMACE46MWW36X3A7X5MKJVK37UCC6IFJFULI",
-      "amount": 410817869940196
+      "address": "HWLQOM2NDMWEKEUCJFXH7EM4ZXUMU62VRP5IOZOEZOWCLTB4EYIIPTCUXA",
+      "amount": 188298237750308
     },
     {
-      "address": "FMUL3SNTBUDWPXYK47LXJPZGSIEZEBBVLBLXSUT4TEMMAPBOFP2FBUASBI",
-      "amount": 315075570700000
+      "address": "OU5436PXO2H2IZYYVYKOZJ7PP5FUY4OZRFSI3JA3NZED6I3ZWVP5F7GGQA",
+      "amount": 186115696905424
     },
     {
-      "address": "L77DESZ6BG64PEWEJJH3HSBHTFNPJG4IZMAIO4VSRECFQDJL236YHBUAAM",
-      "amount": 211111111320248
+      "address": "H4OI2I6ELGJOBZR2YZHQTQ5F52W75O22Z5JLCTFBRKE3TOMRMDMUVXOEDA",
+      "amount": 185904121276470
     },
     {
-      "address": "BNRI25O56ZEF7HMHHFCHAAKSRNYRCOYEHQMZZINN6DSKRHRR6EZR6KLMTM",
-      "amount": 205215961952731
+      "address": "OZAWSPA24ZG5JMNEKY473VFN2YLD3TBD7BMBNHJ2YT7BYIWQB4XI7ANU6Q",
+      "amount": 147162516196010
     },
     {
-      "address": "GQ7Q3EPGG4DBRQO7IE622JIBAPJ47KZAPUHUE7Z6K7JCPJWIMMMBUKUHGA",
-      "amount": 177743550854249
+      "address": "KI47DCJ3KZD4TPV456G4TWIAI3VKOAJH2WXTT6X2V6PTGEU3K3ANEEHG7U",
+      "amount": 147145399061577
     }
   ],
   "account_percentile_rows": [
     {
       "percentile": 0.01,
-      "account_count": 3,
-      "minimum_balance": 585804379451310
+      "account_count": 2193,
+      "minimum_balance": 147177146178
     },
     {
       "percentile": 0.1,
-      "account_count": 30,
-      "minimum_balance": 21662026247724
+      "account_count": 21929,
+      "minimum_balance": 14847383524
     },
     {
       "percentile": 0.2,
-      "account_count": 59,
-      "minimum_balance": 10092474156366
+      "account_count": 43857,
+      "minimum_balance": 6785127688
     },
     {
       "percentile": 0.5,
-      "account_count": 147,
-      "minimum_balance": 3627636387053
+      "account_count": 109642,
+      "minimum_balance": 1660973197
     },
     {
       "percentile": 1.0,
-      "account_count": 293,
-      "minimum_balance": 1710978326135
+      "account_count": 219283,
+      "minimum_balance": 352523485
     },
     {
       "percentile": 2.0,
-      "account_count": 586,
-      "minimum_balance": 649999999998
+      "account_count": 438565,
+      "minimum_balance": 24991214
     },
     {
       "percentile": 3.0,
-      "account_count": 879,
-      "minimum_balance": 338863555604
+      "account_count": 657847,
+      "minimum_balance": 5166455
     },
     {
       "percentile": 4.0,
-      "account_count": 1171,
-      "minimum_balance": 215862789938
+      "account_count": 877130,
+      "minimum_balance": 3570118
     },
     {
       "percentile": 5.0,
-      "account_count": 1464,
-      "minimum_balance": 137205752295
+      "account_count": 1096412,
+      "minimum_balance": 2106000
     },
     {
       "percentile": 10.0,
-      "account_count": 2928,
-      "minimum_balance": 23595391442
+      "account_count": 2192824,
+      "minimum_balance": 964000
     }
   ]
 }
