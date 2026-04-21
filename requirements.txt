@@ -1,0 +1,6 @@
+discord.py
+python-dotenv
+sqlalchemy
+asyncpg
+redis
+pydantic-settings
