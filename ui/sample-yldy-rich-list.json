@@ -129,5 +129,55 @@
       "account_count": 2928,
       "minimum_balance": 23595391442
     }
+  ],
+  "balance_range_rows": [
+    {
+      "range_minimum_balance": 0,
+      "range_maximum_balance": 1000000,
+      "account_count": 13417,
+      "holder_percent": 45.83247933319669,
+      "average_balance": 129505,
+      "top_percentile_cutoff": 100.0
+    },
+    {
+      "range_minimum_balance": 1000000,
+      "range_maximum_balance": 10000000,
+      "account_count": 2018,
+      "holder_percent": 6.893489102958257,
+      "average_balance": 3992478,
+      "top_percentile_cutoff": 54.167520666803306
+    },
+    {
+      "range_minimum_balance": 10000000,
+      "range_maximum_balance": 100000000,
+      "account_count": 2862,
+      "holder_percent": 9.77659356425497,
+      "average_balance": 43952891,
+      "top_percentile_cutoff": 47.27403156384505
+    },
+    {
+      "range_minimum_balance": 100000000,
+      "range_maximum_balance": 1000000000,
+      "account_count": 4010,
+      "holder_percent": 13.69816219170595,
+      "average_balance": 364192966,
+      "top_percentile_cutoff": 37.497437999590076
+    },
+    {
+      "range_minimum_balance": 1000000000,
+      "range_maximum_balance": 10000000000,
+      "account_count": 3124,
+      "holder_percent": 10.671585707453714,
+      "average_balance": 3735211263,
+      "top_percentile_cutoff": 23.79927580788413
+    },
+    {
+      "range_minimum_balance": 10000000000,
+      "range_maximum_balance": null,
+      "account_count": 3843,
+      "holder_percent": 13.127690100430417,
+      "average_balance": 2598682070944,
+      "top_percentile_cutoff": 13.127690100430417
+    }
   ]
 }

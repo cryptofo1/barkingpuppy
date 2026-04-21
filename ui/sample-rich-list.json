@@ -4,34 +4,34 @@
   "asset_unit": "ALGO",
   "indexer_url": "https://mainnet-idx.algonode.cloud",
   "decimals": 6,
-  "holder_count": 21928231,
-  "circulating": 9999864988338023,
-  "configured_total_supply": 9671634982416032,
+  "holder_count": 21929183,
+  "circulating": 9999974714776415,
+  "configured_total_supply": 9671673108164344,
   "basis": "network-total",
   "basis_label": "network total money",
-  "basis_amount": 9671634982416032,
+  "basis_amount": 9671673108164344,
   "threshold_rows": [
     {
       "threshold_percent": 0.01,
-      "minimum_balance": 967163498242,
+      "minimum_balance": 967167310817,
       "holders": 489,
-      "holder_percent": 0.0022300020462206914
+      "holder_percent": 0.0022299052363236697
     },
     {
       "threshold_percent": 1.0,
-      "minimum_balance": 96716349824161,
+      "minimum_balance": 96716731081644,
       "holders": 19,
-      "holder_percent": 8.66462962744236e-05
+      "holder_percent": 8.664253474468246e-05
     },
     {
       "threshold_percent": 5.0,
-      "minimum_balance": 483581749120802,
+      "minimum_balance": 483583655408218,
       "holders": 1,
-      "holder_percent": 4.5603313828643996e-06
+      "holder_percent": 4.560133407614867e-06
     },
     {
       "threshold_percent": 10.0,
-      "minimum_balance": 967163498241604,
+      "minimum_balance": 967167310816435,
       "holders": 0,
       "holder_percent": 0.0
     }
@@ -75,7 +75,7 @@
     },
     {
       "address": "KI47DCJ3KZD4TPV456G4TWIAI3VKOAJH2WXTT6X2V6PTGEU3K3ANEEHG7U",
-      "amount": 147145399061577
+      "amount": 147097773664489
     }
   ],
   "account_percentile_rows": [
@@ -86,48 +86,138 @@
     },
     {
       "percentile": 0.1,
-      "account_count": 21929,
-      "minimum_balance": 14847383524
+      "account_count": 21930,
+      "minimum_balance": 14843923351
     },
     {
       "percentile": 0.2,
-      "account_count": 43857,
-      "minimum_balance": 6785127688
+      "account_count": 43859,
+      "minimum_balance": 6785755403
     },
     {
       "percentile": 0.5,
-      "account_count": 109642,
-      "minimum_balance": 1660973197
+      "account_count": 109646,
+      "minimum_balance": 1660893756
     },
     {
       "percentile": 1.0,
-      "account_count": 219283,
-      "minimum_balance": 352523485
+      "account_count": 219292,
+      "minimum_balance": 352500000
     },
     {
       "percentile": 2.0,
-      "account_count": 438565,
-      "minimum_balance": 24991214
+      "account_count": 438584,
+      "minimum_balance": 24991000
     },
     {
       "percentile": 3.0,
-      "account_count": 657847,
-      "minimum_balance": 5166455
+      "account_count": 657876,
+      "minimum_balance": 5166324
     },
     {
       "percentile": 4.0,
-      "account_count": 877130,
-      "minimum_balance": 3570118
+      "account_count": 877168,
+      "minimum_balance": 3569922
     },
     {
       "percentile": 5.0,
-      "account_count": 1096412,
+      "account_count": 1096460,
       "minimum_balance": 2106000
     },
     {
       "percentile": 10.0,
-      "account_count": 2192824,
+      "account_count": 2192919,
       "minimum_balance": 964000
+    }
+  ],
+  "balance_range_rows": [
+    {
+      "range_minimum_balance": 0,
+      "range_maximum_balance": 1000000,
+      "account_count": 19796978,
+      "holder_percent": 90.27686074761654,
+      "average_balance": 272018,
+      "top_percentile_cutoff": 100.0
+    },
+    {
+      "range_minimum_balance": 1000000,
+      "range_maximum_balance": 10000000,
+      "account_count": 1581648,
+      "holder_percent": 7.212525883887238,
+      "average_balance": 2541951,
+      "top_percentile_cutoff": 9.723139252383456
+    },
+    {
+      "range_minimum_balance": 10000000,
+      "range_maximum_balance": 100000000,
+      "account_count": 226640,
+      "holder_percent": 1.0335086355018333,
+      "average_balance": 33852271,
+      "top_percentile_cutoff": 2.510613368496218
+    },
+    {
+      "range_minimum_balance": 100000000,
+      "range_maximum_balance": 1000000000,
+      "account_count": 176719,
+      "holder_percent": 0.8058622156602916,
+      "average_balance": 363442299,
+      "top_percentile_cutoff": 1.4771047329943847
+    },
+    {
+      "range_minimum_balance": 1000000000,
+      "range_maximum_balance": 10000000000,
+      "account_count": 113791,
+      "holder_percent": 0.5189021405859032,
+      "average_balance": 3146763189,
+      "top_percentile_cutoff": 0.6712425173340931
+    },
+    {
+      "range_minimum_balance": 10000000000,
+      "range_maximum_balance": 50000000000,
+      "account_count": 26435,
+      "holder_percent": 0.120547126630299,
+      "average_balance": 19657292185,
+      "top_percentile_cutoff": 0.15234037674818984
+    },
+    {
+      "range_minimum_balance": 50000000000,
+      "range_maximum_balance": 100000000000,
+      "account_count": 3390,
+      "holder_percent": 0.015458852251814398,
+      "average_balance": 66842170626,
+      "top_percentile_cutoff": 0.031793250117890845
+    },
+    {
+      "range_minimum_balance": 100000000000,
+      "range_maximum_balance": 500000000000,
+      "account_count": 2786,
+      "holder_percent": 0.012704531673615016,
+      "average_balance": 184356997484,
+      "top_percentile_cutoff": 0.016334397866076454
+    },
+    {
+      "range_minimum_balance": 500000000000,
+      "range_maximum_balance": 1000000000000,
+      "account_count": 319,
+      "holder_percent": 0.0014546825570291425,
+      "average_balance": 686576373578,
+      "top_percentile_cutoff": 0.003629866192461434
+    },
+    {
+      "range_minimum_balance": 1000000000000,
+      "range_maximum_balance": 5000000000000,
+      "account_count": 279,
+      "holder_percent": 0.0012722772207245476,
+      "average_balance": 1997580764176,
+      "top_percentile_cutoff": 0.0021751836354322912
+    },
+    {
+      "range_minimum_balance": 5000000000000,
+      "range_maximum_balance": null,
+      "account_count": 198,
+      "holder_percent": 0.0009029064147077435,
+      "average_balance": 38002016930237,
+      "top_percentile_cutoff": 0.0009029064147077435
     }
   ]
 }

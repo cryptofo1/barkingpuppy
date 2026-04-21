@@ -14,6 +14,12 @@ The page lets you load the generated JSON and renders:
 
 - Holder distribution by minimum supply threshold
 - "Percentage # Accounts Balance equals (or greater than)" table
+- Balance range summary with average holdings and top-percentile cutoff
+
+Useful options for the script:
+
+- `--balance-ranges` to customize range bands (whole-token units), e.g. `10000-50000`.
+- `--output-file` to write JSON consumed by the preview UI.
 
 Notes:
 

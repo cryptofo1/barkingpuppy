@@ -173,6 +173,22 @@
         </table>
       </section>
 
+      <section class="table-panel">
+        <div class="table-title">Balance range summary (average holdings)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Balance range</th>
+              <th># Accounts</th>
+              <th>% Holders (band)</th>
+              <th>Average holding</th>
+              <th>Top percentile cutoff</th>
+            </tr>
+          </thead>
+          <tbody id="rangeBody"></tbody>
+        </table>
+      </section>
+
       <p class="note" id="statusNote"></p>
     </main>
 
@@ -240,6 +256,41 @@
             </tr>
           `
           )
+          .join("");
+
+        const rangeBody = document.getElementById("rangeBody");
+        const rangeRows = [...(data.balance_range_rows || [])];
+        if (!rangeRows.length) {
+          rangeBody.innerHTML = `<tr><td colspan="5">No balance range rows in this JSON.</td></tr>`;
+          return;
+        }
+
+        const totalHolders = Number(data.holder_count || 0);
+        let cumulative = 0;
+        for (let i = rangeRows.length - 1; i >= 0; i -= 1) {
+          cumulative += Number(rangeRows[i].account_count || 0);
+          if (rangeRows[i].top_percentile_cutoff === undefined && totalHolders > 0) {
+            rangeRows[i].top_percentile_cutoff = (cumulative / totalHolders) * 100;
+          }
+        }
+
+        rangeBody.innerHTML = rangeRows
+          .map((row) => {
+            const minLabel = formatAmount(row.range_minimum_balance, data.decimals, data.asset_unit);
+            const maxLabel =
+              row.range_maximum_balance === null || row.range_maximum_balance === undefined
+                ? `inf ${data.asset_unit || ""}`.trim()
+                : formatAmount(row.range_maximum_balance, data.decimals, data.asset_unit);
+            return `
+            <tr>
+              <td>${minLabel} - ${maxLabel}</td>
+              <td>${fmtInt(row.account_count)}</td>
+              <td>${fmtPct(row.holder_percent)}</td>
+              <td>${formatAmount(row.average_balance, data.decimals, data.asset_unit)}</td>
+              <td>top ${fmtPct(row.top_percentile_cutoff || 0)}</td>
+            </tr>
+          `;
+          })
           .join("");
       };
 

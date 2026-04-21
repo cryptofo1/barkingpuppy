@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import array
+import bisect
 import heapq
 import json
 import math
@@ -14,13 +15,18 @@ import urllib.parse
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from http.client import IncompleteRead
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional, Tuple
 
 
 DEFAULT_THRESHOLDS = [0.01, 1.0, 5.0, 10.0]
 DEFAULT_ACCOUNT_PERCENTILES = [0.01, 0.1, 0.2, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0]
+DEFAULT_BALANCE_RANGES = (
+    "0-1,1-10,10-100,100-1000,1000-10000,10000-50000,50000-100000,"
+    "100000-500000,500000-1000000,1000000-5000000,5000000-inf"
+)
 ALGO_DECIMALS = 6
 ALGO_UNIT = "ALGO"
 MAX_RETRIES = 5
@@ -31,6 +37,24 @@ RETRY_SLEEP_SECONDS = 1.0
 class HolderBalance:
     address: str
     amount: int
+
+
+@dataclass
+class BalanceRange:
+    lower: Decimal
+    upper: Optional[Decimal]
+
+
+def _to_base_units(value: Decimal, decimals: int) -> int:
+    scale = Decimal(10) ** decimals
+    return int((value * scale).to_integral_value(rounding=ROUND_CEILING))
+
+
+def _format_decimal_value(value: Decimal) -> str:
+    normalized = value.normalize()
+    if normalized == normalized.to_integral():
+        return f"{int(normalized):,}"
+    return f"{normalized:f}".rstrip("0").rstrip(".")
 
 
 def fetch_json(url: str) -> dict:
@@ -244,6 +268,119 @@ def _build_percentile_rows(rows: List[tuple[float, int, int]]) -> List[dict]:
     ]
 
 
+def parse_balance_ranges(raw: str) -> List[BalanceRange]:
+    ranges: List[BalanceRange] = []
+    for item in raw.split(","):
+        piece = item.strip()
+        if not piece:
+            continue
+        if "-" not in piece:
+            raise ValueError(f"Invalid range '{piece}', expected lower-upper.")
+        lower_raw, upper_raw = piece.split("-", 1)
+        try:
+            lower = Decimal(lower_raw.strip())
+        except InvalidOperation as exc:
+            raise ValueError(f"Invalid lower bound in range '{piece}'") from exc
+        upper_raw = upper_raw.strip().lower()
+        if upper_raw in ("inf", "infinity", "+inf", "+infinity"):
+            upper = None
+        else:
+            try:
+                upper = Decimal(upper_raw)
+            except InvalidOperation as exc:
+                raise ValueError(f"Invalid upper bound in range '{piece}'") from exc
+        if lower < 0:
+            raise ValueError(f"Range lower bound must be >= 0: '{piece}'")
+        if upper is not None and upper <= lower:
+            raise ValueError(f"Range upper bound must be > lower bound: '{piece}'")
+        ranges.append(BalanceRange(lower=lower, upper=upper))
+    if not ranges:
+        raise ValueError("At least one valid balance range is required.")
+    for prev, curr in zip(ranges, ranges[1:]):
+        if prev.upper is None:
+            raise ValueError("Open-ended range must be last.")
+        if curr.lower < prev.upper:
+            raise ValueError(
+                "Ranges must be non-overlapping and ordered by lower bound."
+            )
+    return ranges
+
+
+def _convert_whole_to_base_units(value: Decimal, decimals: int) -> int:
+    multiplier = Decimal(10) ** decimals
+    return int((value * multiplier).to_integral_value(rounding=ROUND_CEILING))
+
+
+def _compute_range_rows(
+    amounts: List[int] | array.array,
+    holder_count: int,
+    decimals: int,
+    ranges: List[BalanceRange],
+) -> List[dict]:
+    if not ranges or holder_count == 0:
+        return []
+    sorted_amounts = sorted(int(x) for x in amounts)
+    rows = []
+    for rng in ranges:
+        lower_units = _convert_whole_to_base_units(rng.lower, decimals)
+        upper_units = (
+            _convert_whole_to_base_units(rng.upper, decimals)
+            if rng.upper is not None
+            else None
+        )
+        left = bisect.bisect_left(sorted_amounts, lower_units)
+        right = (
+            bisect.bisect_left(sorted_amounts, upper_units)
+            if upper_units is not None
+            else holder_count
+        )
+        count = max(0, right - left)
+        total = sum(sorted_amounts[left:right]) if count else 0
+        average = total // count if count else 0
+        top_pct = (count / holder_count) * 100.0 if holder_count else 0.0
+        rows.append(
+            {
+                "range_minimum_balance": lower_units,
+                "range_maximum_balance": upper_units,
+                "account_count": count,
+                "holder_percent": top_pct,
+                "average_balance": average,
+                "top_percentile_cutoff": 0.0,
+            }
+        )
+    cumulative = 0
+    for row in reversed(rows):
+        cumulative += row["account_count"]
+        row["top_percentile_cutoff"] = (
+            (cumulative / holder_count) * 100.0 if holder_count else 0.0
+        )
+    return rows
+
+
+def _print_range_table(rows: List[dict], decimals: int, unit: str) -> None:
+    if not rows:
+        return
+    unit_suffix = f" {unit}" if unit else ""
+    print()
+    print("Balance range summary")
+    print("range | accounts | % holders | avg balance | top percentile")
+    print("----- | -------- | --------- | ----------- | --------------")
+    for row in rows:
+        lower = format_units(row["range_minimum_balance"], decimals)
+        upper_raw = row["range_maximum_balance"]
+        upper = (
+            format_units(upper_raw, decimals)
+            if upper_raw is not None
+            else "inf"
+        )
+        avg = format_units(row["average_balance"], decimals)
+        pct = row["holder_percent"]
+        print(
+            f"{lower}-{upper}{unit_suffix} | {row['account_count']:,} | "
+            f"{pct:.4f}% | {avg}{unit_suffix} | top {row['top_percentile_cutoff']:.4f}%"
+        )
+
+
 def _write_json_output(path: str, report: dict) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -272,12 +409,18 @@ def parse_thresholds(raw: str) -> List[float]:
     return sorted(set(values))
 
 
+def _is_default_ranges(raw: str) -> bool:
+    normalize = lambda s: "".join(s.lower().split())
+    return normalize(raw) == normalize(DEFAULT_BALANCE_RANGES)
+
+
 def run_asset(
     asset_id: int,
     indexer_url: str,
     basis: str,
     thresholds: Iterable[float],
     account_percentiles: List[float],
+    balance_ranges: List[BalanceRange],
     page_size: int,
     output_format: str,
     output_file: str | None,
@@ -305,7 +448,14 @@ def run_asset(
         min_balance = math.ceil(basis_amount * (threshold / 100.0))
         threshold_counts.append(sum(1 for h in holders if h.amount >= min_balance))
     top_holders = holders[:10]
-    percentile_rows = _compute_percentile_cutoffs([h.amount for h in holders], account_percentiles)
+    holder_amounts = [h.amount for h in holders]
+    percentile_rows = _compute_percentile_cutoffs(holder_amounts, account_percentiles)
+    range_rows = _compute_range_rows(
+        amounts=holder_amounts,
+        holder_count=holder_count,
+        decimals=decimals,
+        ranges=balance_ranges,
+    )
     report = {
         "asset_id": asset_id,
         "asset_name": name,
@@ -326,6 +476,7 @@ def run_asset(
         ),
         "top_holders": [{"address": h.address, "amount": h.amount} for h in top_holders],
         "account_percentile_rows": _build_percentile_rows(percentile_rows),
+        "balance_range_rows": range_rows,
     }
     if output_file:
         _write_json_output(output_file, report)
@@ -353,6 +504,7 @@ def run_asset(
         decimals=decimals,
         unit=unit,
     )
+    _print_range_table(range_rows, decimals=decimals, unit=unit)
 
 
 def run_algo(
@@ -361,6 +513,7 @@ def run_algo(
     basis: str,
     thresholds: List[float],
     account_percentiles: List[float],
+    balance_ranges: List[BalanceRange],
     page_size: int,
     balance_field: str,
     output_format: str,
@@ -376,7 +529,7 @@ def run_algo(
     basis_amount = total_money if basis == "network-total" else 0
     min_balances = [math.ceil(basis_amount * (t / 100.0)) for t in thresholds] if basis == "network-total" else []
     threshold_counts = [0 for _ in thresholds]
-    all_amounts = array.array("Q") if account_percentiles else None
+    all_amounts = array.array("Q") if (account_percentiles or balance_ranges) else None
 
     for holder in iterate_algo_holders(indexer_url, page_size=page_size, balance_field=balance_field):
         holder_count += 1
@@ -407,6 +560,12 @@ def run_algo(
         for amount, address in sorted(top_heap, key=lambda row: row[0], reverse=True)
     ]
     percentile_rows = _compute_percentile_cutoffs(all_amounts or [], account_percentiles)
+    range_rows = _compute_range_rows(
+        amounts=all_amounts or [],
+        holder_count=holder_count,
+        decimals=ALGO_DECIMALS,
+        ranges=balance_ranges,
+    )
     report = {
         "asset_id": 0,
         "asset_name": "Algorand",
@@ -427,6 +586,7 @@ def run_algo(
         ),
         "top_holders": [{"address": h.address, "amount": h.amount} for h in top_holders],
         "account_percentile_rows": _build_percentile_rows(percentile_rows),
+        "balance_range_rows": range_rows,
     }
     if output_file:
         _write_json_output(output_file, report)
@@ -454,6 +614,7 @@ def run_algo(
         decimals=ALGO_DECIMALS,
         unit=ALGO_UNIT,
     )
+    _print_range_table(range_rows, decimals=ALGO_DECIMALS, unit=ALGO_UNIT)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -486,6 +647,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Comma-separated account percentile rows for cutoff table. "
             "Example: 0.01,0.1,0.2,0.5,1,2,3,4,5,10"
+        ),
+    )
+    parser.add_argument(
+        "--balance-ranges",
+        default=DEFAULT_BALANCE_RANGES,
+        help=(
+            "Comma-separated balance ranges in whole-token units (lower-upper). "
+            "Use 'inf' for open-ended upper bound."
         ),
     )
     parser.add_argument(
@@ -525,6 +694,10 @@ def main() -> int:
     try:
         thresholds = parse_thresholds(args.thresholds)
         account_percentiles = parse_thresholds(args.account_percentiles)
+        balance_ranges = parse_balance_ranges(args.balance_ranges)
+        if args.asset_id != 0 and _is_default_ranges(args.balance_ranges):
+            # Token-agnostic defaults are tuned for ALGO scale and are too large for many ASAs.
+            balance_ranges = parse_balance_ranges("0-1,1-10,10-100,100-1000,1000-10000,10000-inf")
         if args.asset_id == 0:
             if args.basis == "asset-total":
                 raise ValueError("For ALGO (asset-id 0), basis must be circulating or network-total.")
@@ -534,6 +707,7 @@ def main() -> int:
                 basis=args.basis,
                 thresholds=thresholds,
                 account_percentiles=account_percentiles,
+                balance_ranges=balance_ranges,
                 page_size=args.page_size,
                 balance_field=args.algo_balance_field,
                 output_format=args.output_format,
@@ -548,6 +722,7 @@ def main() -> int:
                 basis=args.basis,
                 thresholds=thresholds,
                 account_percentiles=account_percentiles,
+                balance_ranges=balance_ranges,
                 page_size=args.page_size,
                 output_format=args.output_format,
                 output_file=args.output_file,
