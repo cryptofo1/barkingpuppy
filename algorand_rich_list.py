@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from http.client import IncompleteRead
+from pathlib import Path
 from typing import Iterable, List
 
 
@@ -214,6 +215,41 @@ def _print_account_percentile_table(
         print(f"{pct:g}% | {account_count:,} | {format_units(cutoff, decimals)}{unit_suffix}")
 
 
+def _build_threshold_rows(
+    thresholds: Iterable[float], threshold_counts: List[int], basis_amount: int, holder_count: int
+) -> List[dict]:
+    rows: List[dict] = []
+    for threshold, count in zip(thresholds, threshold_counts):
+        min_balance = math.ceil(basis_amount * (threshold / 100.0))
+        pct = (count / holder_count) * 100.0 if holder_count else 0.0
+        rows.append(
+            {
+                "threshold_percent": threshold,
+                "minimum_balance": min_balance,
+                "holders": count,
+                "holder_percent": pct,
+            }
+        )
+    return rows
+
+
+def _build_percentile_rows(rows: List[tuple[float, int, int]]) -> List[dict]:
+    return [
+        {
+            "percentile": percentile,
+            "account_count": account_count,
+            "minimum_balance": min_balance,
+        }
+        for percentile, account_count, min_balance in rows
+    ]
+
+
+def _write_json_output(path: str, report: dict) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
 def format_units(amount: int, decimals: int) -> str:
     if decimals <= 0:
         return f"{amount:,}"
@@ -243,6 +279,8 @@ def run_asset(
     thresholds: Iterable[float],
     account_percentiles: List[float],
     page_size: int,
+    output_format: str,
+    output_file: str | None,
 ) -> None:
     asset = get_asset(asset_id, indexer_url=indexer_url)
     params = asset["params"]
@@ -267,6 +305,34 @@ def run_asset(
         min_balance = math.ceil(basis_amount * (threshold / 100.0))
         threshold_counts.append(sum(1 for h in holders if h.amount >= min_balance))
     top_holders = holders[:10]
+    percentile_rows = _compute_percentile_cutoffs([h.amount for h in holders], account_percentiles)
+    report = {
+        "asset_id": asset_id,
+        "asset_name": name,
+        "asset_unit": unit,
+        "indexer_url": indexer_url,
+        "decimals": decimals,
+        "holder_count": holder_count,
+        "circulating": circulating,
+        "configured_total_supply": total,
+        "basis": basis,
+        "basis_label": basis_label,
+        "basis_amount": basis_amount,
+        "threshold_rows": _build_threshold_rows(
+            thresholds=thresholds,
+            threshold_counts=threshold_counts,
+            basis_amount=basis_amount,
+            holder_count=holder_count,
+        ),
+        "top_holders": [{"address": h.address, "amount": h.amount} for h in top_holders],
+        "account_percentile_rows": _build_percentile_rows(percentile_rows),
+    }
+    if output_file:
+        _write_json_output(output_file, report)
+    if output_format == "json":
+        print(json.dumps(report, indent=2))
+        return
+
     _print_report(
         asset_label=f"{asset_id} | {name}",
         unit=unit,
@@ -281,7 +347,6 @@ def run_asset(
         threshold_counts=threshold_counts,
         top_holders=top_holders,
     )
-    percentile_rows = _compute_percentile_cutoffs([h.amount for h in holders], account_percentiles)
     _print_account_percentile_table(
         percentiles=account_percentiles,
         rows=percentile_rows,
@@ -298,6 +363,8 @@ def run_algo(
     account_percentiles: List[float],
     page_size: int,
     balance_field: str,
+    output_format: str,
+    output_file: str | None,
 ) -> None:
     supply = get_algo_supply(algod_url)
     total_money = int(supply["total-money"])
@@ -339,6 +406,34 @@ def run_algo(
         HolderBalance(address=address, amount=amount)
         for amount, address in sorted(top_heap, key=lambda row: row[0], reverse=True)
     ]
+    percentile_rows = _compute_percentile_cutoffs(all_amounts or [], account_percentiles)
+    report = {
+        "asset_id": 0,
+        "asset_name": "Algorand",
+        "asset_unit": ALGO_UNIT,
+        "indexer_url": indexer_url,
+        "decimals": ALGO_DECIMALS,
+        "holder_count": holder_count,
+        "circulating": circulating,
+        "configured_total_supply": total_money,
+        "basis": basis,
+        "basis_label": basis_label,
+        "basis_amount": basis_amount,
+        "threshold_rows": _build_threshold_rows(
+            thresholds=thresholds,
+            threshold_counts=threshold_counts,
+            basis_amount=basis_amount,
+            holder_count=holder_count,
+        ),
+        "top_holders": [{"address": h.address, "amount": h.amount} for h in top_holders],
+        "account_percentile_rows": _build_percentile_rows(percentile_rows),
+    }
+    if output_file:
+        _write_json_output(output_file, report)
+    if output_format == "json":
+        print(json.dumps(report, indent=2))
+        return
+
     _print_report(
         asset_label="0 | Algorand",
         unit=ALGO_UNIT,
@@ -353,7 +448,6 @@ def run_algo(
         threshold_counts=threshold_counts,
         top_holders=top_holders,
     )
-    percentile_rows = _compute_percentile_cutoffs(all_amounts or [], account_percentiles)
     _print_account_percentile_table(
         percentiles=account_percentiles,
         rows=percentile_rows,
@@ -411,6 +505,16 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["amount", "amount-without-pending-rewards"],
         help="Balance field used for ALGO rich list.",
     )
+    parser.add_argument(
+        "--output-format",
+        default="text",
+        choices=["text", "json"],
+        help="Output format for stdout.",
+    )
+    parser.add_argument(
+        "--output-file",
+        help="Optional path to write structured JSON output.",
+    )
     return parser
 
 
@@ -432,6 +536,8 @@ def main() -> int:
                 account_percentiles=account_percentiles,
                 page_size=args.page_size,
                 balance_field=args.algo_balance_field,
+                output_format=args.output_format,
+                output_file=args.output_file,
             )
         else:
             if args.basis == "network-total":
@@ -443,6 +549,8 @@ def main() -> int:
                 thresholds=thresholds,
                 account_percentiles=account_percentiles,
                 page_size=args.page_size,
+                output_format=args.output_format,
+                output_file=args.output_file,
             )
     except Exception as exc:  # pylint: disable=broad-except
         print(f"Failed: {exc}", file=sys.stderr)

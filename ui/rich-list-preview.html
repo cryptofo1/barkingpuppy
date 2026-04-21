@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Algorand Rich List Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1118;
+        --panel: #161925;
+        --border: #31384f;
+        --text: #ecf0ff;
+        --muted: #a8b0c6;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1150px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: var(--muted);
+      }
+
+      .controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .controls input[type="text"],
+      .controls button,
+      .controls input[type="file"] {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .controls input[type="text"] {
+        min-width: 340px;
+      }
+
+      .controls button {
+        cursor: pointer;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+      }
+
+      .card .label {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .card .value {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .table-panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 18px;
+        overflow: hidden;
+      }
+
+      .table-title {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 700;
+        font-size: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 10px 12px;
+        text-align: left;
+      }
+
+      th {
+        background: #1c2131;
+        font-size: 18px;
+      }
+
+      td {
+        font-size: 16px;
+      }
+
+      .note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Algorand Rich List Preview</h1>
+      <p class="subtitle">Load JSON from the script to render table output like your screenshot.</p>
+
+      <section class="controls">
+        <input id="jsonPath" type="text" value="./sample-rich-list.json" />
+        <button id="loadPathBtn">Load JSON Path</button>
+        <input id="fileInput" type="file" accept=".json,application/json" />
+      </section>
+
+      <section class="summary-grid" id="summaryGrid"></section>
+
+      <section class="table-panel">
+        <div class="table-title">Percentage # Accounts Balance equals (or greater than)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Percentile</th>
+              <th># Accounts</th>
+              <th>Balance (or greater)</th>
+            </tr>
+          </thead>
+          <tbody id="percentileBody"></tbody>
+        </table>
+      </section>
+
+      <section class="table-panel">
+        <div class="table-title">Holder distribution by minimum balance threshold</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Threshold</th>
+              <th>Minimum balance</th>
+              <th>Holders</th>
+              <th>% of holders</th>
+            </tr>
+          </thead>
+          <tbody id="thresholdBody"></tbody>
+        </table>
+      </section>
+
+      <p class="note" id="statusNote"></p>
+    </main>
+
+    <script>
+      const fmtInt = (n) => new Intl.NumberFormat("en-US").format(n);
+      const fmtPct = (n) => `${Number(n).toFixed(4)}%`;
+
+      const formatAmount = (raw, decimals, unit) => {
+        const value = Number(raw) / 10 ** Number(decimals);
+        return `${new Intl.NumberFormat("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: Number(decimals),
+        }).format(value)} ${unit || ""}`.trim();
+      };
+
+      const setSummary = (data) => {
+        const fields = [
+          ["Asset", `${data.asset_name} (${data.asset_unit || "-"})`],
+          ["Holders", fmtInt(data.holder_count)],
+          ["Basis", data.basis_label],
+          ["Basis amount", formatAmount(data.basis_amount, data.decimals, data.asset_unit)],
+          [
+            "Configured total",
+            formatAmount(data.configured_total_supply, data.decimals, data.asset_unit),
+          ],
+          ["Indexer", data.indexer_url],
+        ];
+
+        const grid = document.getElementById("summaryGrid");
+        grid.innerHTML = fields
+          .map(
+            ([label, value]) => `
+            <article class="card">
+              <div class="label">${label}</div>
+              <div class="value">${value}</div>
+            </article>
+          `
+          )
+          .join("");
+      };
+
+      const setTables = (data) => {
+        const percentileBody = document.getElementById("percentileBody");
+        percentileBody.innerHTML = (data.account_percentile_rows || [])
+          .map(
+            (row) => `
+            <tr>
+              <td>${row.percentile}%</td>
+              <td>${fmtInt(row.account_count)}</td>
+              <td>${formatAmount(row.minimum_balance, data.decimals, data.asset_unit)}</td>
+            </tr>
+          `
+          )
+          .join("");
+
+        const thresholdBody = document.getElementById("thresholdBody");
+        thresholdBody.innerHTML = (data.threshold_rows || [])
+          .map(
+            (row) => `
+            <tr>
+              <td>&gt;= ${row.threshold_percent}%</td>
+              <td>${formatAmount(row.minimum_balance, data.decimals, data.asset_unit)}</td>
+              <td>${fmtInt(row.holders)}</td>
+              <td>${fmtPct(row.holder_percent)}</td>
+            </tr>
+          `
+          )
+          .join("");
+      };
+
+      const loadJsonData = async (source) => {
+        const status = document.getElementById("statusNote");
+        try {
+          let data;
+          if (typeof source === "string") {
+            const resp = await fetch(source);
+            if (!resp.ok) {
+              throw new Error(`HTTP ${resp.status}`);
+            }
+            data = await resp.json();
+          } else {
+            data = JSON.parse(source);
+          }
+
+          setSummary(data);
+          setTables(data);
+          status.textContent = `Loaded data for ${data.asset_name} from ${new Date().toLocaleTimeString()}.`;
+        } catch (err) {
+          status.textContent = `Failed to load JSON: ${err.message}`;
+        }
+      };
+
+      document.getElementById("loadPathBtn").addEventListener("click", () => {
+        loadJsonData(document.getElementById("jsonPath").value.trim());
+      });
+
+      document.getElementById("fileInput").addEventListener("change", async (ev) => {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        loadJsonData(text);
+      });
+
+      loadJsonData("./sample-rich-list.json");
+    </script>
+  </body>
+</html>
