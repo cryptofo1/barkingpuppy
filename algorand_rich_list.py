@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
-"""Compute holder distribution buckets for an Algorand ASA."""
+"""Compute holder distribution buckets for an Algorand ASA or ALGO."""
 
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
 import math
 import sys
+import time
 import urllib.parse
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from http.client import IncompleteRead
 from typing import Iterable, List
 
 
 DEFAULT_THRESHOLDS = [0.01, 1.0, 5.0, 10.0]
+ALGO_DECIMALS = 6
+ALGO_UNIT = "ALGO"
+MAX_RETRIES = 5
+RETRY_SLEEP_SECONDS = 1.0
 
 
 @dataclass
@@ -24,8 +32,26 @@ class HolderBalance:
 
 def fetch_json(url: str) -> dict:
     req = urllib.request.Request(url, headers={"accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
-        return json.load(resp)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
+                return json.load(resp)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (429, 500, 502, 503, 504):
+                raise
+            if attempt == MAX_RETRIES:
+                raise RuntimeError(f"HTTP {exc.code} for {url}") from exc
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionResetError,
+            IncompleteRead,
+            json.JSONDecodeError,
+        ) as exc:
+            if attempt == MAX_RETRIES:
+                raise RuntimeError(f"Network error for {url}: {exc}") from exc
+        time.sleep(RETRY_SLEEP_SECONDS * attempt)
+    raise RuntimeError(f"Unable to fetch payload from {url}")
 
 
 def get_asset(asset_id: int, indexer_url: str) -> dict:
@@ -64,6 +90,88 @@ def get_all_holders(asset_id: int, indexer_url: str, page_size: int) -> List[Hol
     return holders
 
 
+def get_algo_supply(algod_url: str) -> dict:
+    endpoint = f"{algod_url.rstrip('/')}/v2/ledger/supply"
+    return fetch_json(endpoint)
+
+
+def iterate_algo_holders(
+    indexer_url: str, page_size: int, balance_field: str
+) -> Iterable[HolderBalance]:
+    next_token = None
+    while True:
+        params = {
+            "limit": str(page_size),
+            "include-all": "false",
+            "currency-greater-than": "0",
+            "exclude": "all",
+        }
+        if next_token:
+            params["next"] = next_token
+        query = urllib.parse.urlencode(params)
+        endpoint = f"{indexer_url.rstrip('/')}/v2/accounts?{query}"
+        payload = fetch_json(endpoint)
+        for account in payload.get("accounts", []):
+            amount = int(account[balance_field])
+            if amount <= 0:
+                continue
+            yield HolderBalance(address=account["address"], amount=amount)
+        next_token = payload.get("next-token")
+        if not next_token:
+            break
+
+
+def _update_top_holders(top_heap: List[tuple[int, str]], holder: HolderBalance, size: int = 10) -> None:
+    row = (holder.amount, holder.address)
+    if len(top_heap) < size:
+        heapq.heappush(top_heap, row)
+        return
+    if row[0] > top_heap[0][0]:
+        heapq.heapreplace(top_heap, row)
+
+
+def _print_report(
+    asset_label: str,
+    unit: str,
+    indexer_url: str,
+    decimals: int,
+    holder_count: int,
+    circulating: int,
+    configured_total: int | None,
+    basis_label: str,
+    basis_amount: int,
+    thresholds: Iterable[float],
+    threshold_counts: List[int],
+    top_holders: List[HolderBalance],
+) -> None:
+    print(f"Asset: {asset_label} {f'({unit})' if unit else ''}")
+    print(f"Indexer: {indexer_url}")
+    print(f"Decimals: {decimals}")
+    print(f"Total holders (amount > 0): {holder_count:,}")
+    print(f"Total circulating (sum of holder balances): {format_units(circulating, decimals)}")
+    if configured_total is not None:
+        print(f"Configured total supply: {format_units(configured_total, decimals)}")
+    print(f"Bucket basis: {basis_label} = {format_units(basis_amount, decimals)}")
+    print()
+    print("Holder distribution by minimum balance threshold")
+    print("threshold | minimum balance | holders | % of holders")
+    print("--------- | --------------- | ------- | ------------")
+    for threshold, count in zip(thresholds, threshold_counts):
+        min_balance = math.ceil(basis_amount * (threshold / 100.0))
+        pct = (count / holder_count) * 100.0 if holder_count else 0.0
+        print(
+            f">= {threshold:g}% | {format_units(min_balance, decimals)} | "
+            f"{count:,} | {pct:.4f}%"
+        )
+    print()
+    print("Top 10 holders")
+    print("rank | address | balance | share of basis")
+    print("---- | ------- | ------- | -------------")
+    for idx, holder in enumerate(top_holders, start=1):
+        share = (holder.amount / basis_amount) * 100.0 if basis_amount else 0.0
+        print(f"{idx} | {holder.address} | {format_units(holder.amount, decimals)} | {share:.4f}%")
+
+
 def format_units(amount: int, decimals: int) -> str:
     if decimals <= 0:
         return f"{amount:,}"
@@ -86,7 +194,13 @@ def parse_thresholds(raw: str) -> List[float]:
     return sorted(set(values))
 
 
-def run(asset_id: int, indexer_url: str, basis: str, thresholds: Iterable[float], page_size: int) -> None:
+def run_asset(
+    asset_id: int,
+    indexer_url: str,
+    basis: str,
+    thresholds: Iterable[float],
+    page_size: int,
+) -> None:
     asset = get_asset(asset_id, indexer_url=indexer_url)
     params = asset["params"]
     name = params.get("name", "(unknown)")
@@ -105,37 +219,86 @@ def run(asset_id: int, indexer_url: str, basis: str, thresholds: Iterable[float]
     circulating = sum(h.amount for h in holders)
     basis_amount = total if basis == "asset-total" else circulating
     basis_label = "asset total supply" if basis == "asset-total" else "live circulating balances"
-
-    print(f"Asset: {asset_id} | {name} {f'({unit})' if unit else ''}")
-    print(f"Indexer: {indexer_url}")
-    print(f"Decimals: {decimals}")
-    print(f"Total holders (amount > 0): {holder_count:,}")
-    print(f"Total circulating (sum of holder balances): {format_units(circulating, decimals)}")
-    print(f"Configured total supply: {format_units(total, decimals)}")
-    print(f"Bucket basis: {basis_label} = {format_units(basis_amount, decimals)}")
-    print()
-    print("Holder distribution by minimum balance threshold")
-    print("threshold | minimum balance | holders | % of holders")
-    print("--------- | --------------- | ------- | ------------")
-
+    threshold_counts = []
     for threshold in thresholds:
         min_balance = math.ceil(basis_amount * (threshold / 100.0))
-        count = sum(1 for h in holders if h.amount >= min_balance)
-        pct = (count / holder_count) * 100.0
-        print(
-            f">= {threshold:g}% | {format_units(min_balance, decimals)} | "
-            f"{count:,} | {pct:.4f}%"
-        )
+        threshold_counts.append(sum(1 for h in holders if h.amount >= min_balance))
+    top_holders = holders[:10]
+    _print_report(
+        asset_label=f"{asset_id} | {name}",
+        unit=unit,
+        indexer_url=indexer_url,
+        decimals=decimals,
+        holder_count=holder_count,
+        circulating=circulating,
+        configured_total=total,
+        basis_label=basis_label,
+        basis_amount=basis_amount,
+        thresholds=thresholds,
+        threshold_counts=threshold_counts,
+        top_holders=top_holders,
+    )
 
-    print()
-    print("Top 10 holders")
-    print("rank | address | balance | share of basis")
-    print("---- | ------- | ------- | -------------")
-    for idx, holder in enumerate(holders[:10], start=1):
-        share = (holder.amount / basis_amount) * 100.0 if basis_amount else 0.0
-        print(
-            f"{idx} | {holder.address} | {format_units(holder.amount, decimals)} | {share:.4f}%"
-        )
+
+def run_algo(
+    indexer_url: str,
+    algod_url: str,
+    basis: str,
+    thresholds: List[float],
+    page_size: int,
+    balance_field: str,
+) -> None:
+    supply = get_algo_supply(algod_url)
+    total_money = int(supply["total-money"])
+
+    top_heap: List[tuple[int, str]] = []
+    holder_count = 0
+    circulating = 0
+    basis_label = "network total money" if basis == "network-total" else "live circulating balances"
+    basis_amount = total_money if basis == "network-total" else 0
+    min_balances = [math.ceil(basis_amount * (t / 100.0)) for t in thresholds] if basis == "network-total" else []
+    threshold_counts = [0 for _ in thresholds]
+
+    for holder in iterate_algo_holders(indexer_url, page_size=page_size, balance_field=balance_field):
+        holder_count += 1
+        circulating += holder.amount
+        _update_top_holders(top_heap, holder)
+        if basis == "network-total":
+            for idx, min_balance in enumerate(min_balances):
+                if holder.amount >= min_balance:
+                    threshold_counts[idx] += 1
+
+    if holder_count == 0:
+        print("ALGO has no live holders with positive balances.")
+        return
+
+    if basis != "network-total":
+        # Circulating basis is only known after the first scan.
+        basis_amount = circulating
+        min_balances = [math.ceil(basis_amount * (t / 100.0)) for t in thresholds]
+        for holder in iterate_algo_holders(indexer_url, page_size=page_size, balance_field=balance_field):
+            for idx, min_balance in enumerate(min_balances):
+                if holder.amount >= min_balance:
+                    threshold_counts[idx] += 1
+
+    top_holders = [
+        HolderBalance(address=address, amount=amount)
+        for amount, address in sorted(top_heap, key=lambda row: row[0], reverse=True)
+    ]
+    _print_report(
+        asset_label="0 | Algorand",
+        unit=ALGO_UNIT,
+        indexer_url=indexer_url,
+        decimals=ALGO_DECIMALS,
+        holder_count=holder_count,
+        circulating=circulating,
+        configured_total=total_money,
+        basis_label=basis_label,
+        basis_amount=basis_amount,
+        thresholds=thresholds,
+        threshold_counts=threshold_counts,
+        top_holders=top_holders,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -151,8 +314,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--basis",
         default="circulating",
-        choices=["circulating", "asset-total"],
-        help="Use circulating balances sum or configured asset total for thresholds.",
+        choices=["circulating", "asset-total", "network-total"],
+        help=(
+            "Threshold basis. For ASA: circulating/asset-total. "
+            "For ALGO (asset-id 0): circulating/network-total."
+        ),
     )
     parser.add_argument(
         "--thresholds",
@@ -165,6 +331,17 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Balances page size (indexer max is usually 1000).",
     )
+    parser.add_argument(
+        "--algod-url",
+        default="https://mainnet-api.algonode.cloud",
+        help="Algod API base URL (used when asset-id is 0 for ALGO).",
+    )
+    parser.add_argument(
+        "--algo-balance-field",
+        default="amount",
+        choices=["amount", "amount-without-pending-rewards"],
+        help="Balance field used for ALGO rich list.",
+    )
     return parser
 
 
@@ -174,13 +351,27 @@ def main() -> int:
 
     try:
         thresholds = parse_thresholds(args.thresholds)
-        run(
-            asset_id=args.asset_id,
-            indexer_url=args.indexer_url,
-            basis=args.basis,
-            thresholds=thresholds,
-            page_size=args.page_size,
-        )
+        if args.asset_id == 0:
+            if args.basis == "asset-total":
+                raise ValueError("For ALGO (asset-id 0), basis must be circulating or network-total.")
+            run_algo(
+                indexer_url=args.indexer_url,
+                algod_url=args.algod_url,
+                basis=args.basis,
+                thresholds=thresholds,
+                page_size=args.page_size,
+                balance_field=args.algo_balance_field,
+            )
+        else:
+            if args.basis == "network-total":
+                raise ValueError("network-total basis is only valid for ALGO (asset-id 0).")
+            run_asset(
+                asset_id=args.asset_id,
+                indexer_url=args.indexer_url,
+                basis=args.basis,
+                thresholds=thresholds,
+                page_size=args.page_size,
+            )
     except Exception as exc:  # pylint: disable=broad-except
         print(f"Failed: {exc}", file=sys.stderr)
         return 1
