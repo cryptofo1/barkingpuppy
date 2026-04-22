@@ -14,6 +14,7 @@
         --text: #f0f4ff;
         --muted: #a8b0c6;
         --accent: #4f8cff;
+        --warning: #ffd166;
       }
 
       body {
@@ -40,7 +41,8 @@
       }
 
       .controls,
-      .hero,
+      .rank-check,
+      .result-card,
       .tiers,
       .footnote {
         background: var(--panel);
@@ -55,6 +57,7 @@
         gap: 10px;
         flex-wrap: wrap;
         align-items: center;
+        margin-bottom: 10px;
       }
 
       input,
@@ -71,25 +74,63 @@
         min-width: 280px;
       }
 
-      .hero .label {
-        color: var(--muted);
-        font-size: 13px;
+      .rank-check h2 {
+        margin: 0 0 10px;
+        font-size: 20px;
       }
 
-      .hero .rank {
-        font-size: 42px;
-        margin: 4px 0;
-        color: var(--accent);
+      .rank-input-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      #holdingInput {
+        min-width: 260px;
+      }
+
+      .rank-warning {
+        margin: 0;
+        color: var(--warning);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .result-card.hidden {
+        display: none;
+      }
+
+      .result-top {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+      }
+
+      .result-stat {
+        background: var(--panel-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .result-stat .label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .result-stat .value {
+        margin-top: 4px;
+        font-size: 20px;
         font-weight: 700;
+        color: var(--accent);
       }
 
-      .hero .desc {
-        font-size: 16px;
-      }
-
-      .hero .sub {
-        margin-top: 6px;
-        color: var(--muted);
+      .result-details {
+        margin-top: 10px;
+        display: grid;
+        gap: 6px;
+        color: var(--text);
         font-size: 14px;
       }
 
@@ -124,15 +165,48 @@
       <section class="controls">
         <input id="jsonPath" type="text" value="./sample-rich-list.json" />
         <button id="loadBtn">Load JSON</button>
-        <input id="holdingInput" type="number" min="0" step="1" value="25000" />
-        <button id="recalcBtn">Recalculate Rank</button>
       </section>
 
-      <section class="hero">
-        <div class="label">Your holder rank</div>
-        <div class="rank" id="rankText">Top --%</div>
-        <div class="desc" id="rankDesc">Enter a holding amount.</div>
-        <div class="sub" id="rankSub"></div>
+      <section class="rank-check">
+        <h2>Check Your Rank</h2>
+        <div class="rank-input-row">
+          <input
+            id="holdingInput"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Enter your ALGO holdings"
+          />
+          <button id="checkRankBtn">Check Rank</button>
+        </div>
+        <p class="rank-warning">
+          ⚠️ Your data is NOT stored, or shared by inputting your ALGO amount! Never reveal your
+          holdings online, be vigilant of scammers.
+        </p>
+      </section>
+
+      <section class="result-card hidden" id="resultCard">
+        <div class="result-top">
+          <article class="result-stat">
+            <div class="label">Approx. position</div>
+            <div class="value" id="rankPosition">--</div>
+          </article>
+          <article class="result-stat">
+            <div class="label">Top percentile</div>
+            <div class="value" id="rankPercentile">--</div>
+          </article>
+          <article class="result-stat">
+            <div class="label">Tier</div>
+            <div class="value" id="rankTier">--</div>
+          </article>
+        </div>
+        <div class="result-details">
+          <div id="rankBand">Band: --</div>
+          <div id="rankShare">Share of supply: --</div>
+          <div id="rankAbove">Wallets above: --</div>
+          <div id="rankAvgBand">Average in your band: --</div>
+          <div id="rankNextTarget">Next target: --</div>
+        </div>
       </section>
 
       <section class="tiers">
@@ -178,7 +252,7 @@
           return minOk && maxOk;
         }) || rows[rows.length - 1];
 
-      const render = () => {
+      const renderTierTable = () => {
         if (!current) return;
         const tierBody = document.getElementById("tierBody");
         tierBody.innerHTML = tierTargets
@@ -191,27 +265,86 @@
               </tr>`;
           })
           .join("");
+      };
 
-        const holding = Math.max(0, Number(document.getElementById("holdingInput").value || 0));
+      const estimateTierLabel = (topPct) => {
+        for (const target of tierTargets) {
+          if (topPct <= target) {
+            return `Top ${target}% tier`;
+          }
+        }
+        return `Top ${fmtPct(topPct)} tier`;
+      };
+
+      const checkRank = () => {
+        if (!current) return;
+        const raw = document.getElementById("holdingInput").value.trim();
+        const status = document.getElementById("status");
+        if (!raw) {
+          status.textContent = "Enter your holdings amount to check your rank.";
+          return;
+        }
+        const holding = Number(raw);
+        if (!Number.isFinite(holding) || holding < 0) {
+          status.textContent = "Enter a valid positive holdings amount.";
+          return;
+        }
+
         const baseAmount = Math.round(holding * 10 ** Number(current.decimals || 0));
-        const row = findRangeRow(current.balance_range_rows || [], baseAmount);
+        const rows = current.balance_range_rows || [];
+        if (!rows.length) {
+          status.textContent = "No range rows available in loaded JSON.";
+          return;
+        }
+        const row = findRangeRow(rows, baseAmount);
         const topPct = Number(row.top_percentile_cutoff || 0);
         const sharePct = (baseAmount / Number(current.basis_amount || 1)) * 100;
+        const estPosition = Math.min(
+          Number(current.holder_count || 0),
+          Math.max(1, Math.ceil((topPct / 100) * Number(current.holder_count || 1)))
+        );
+        const walletsAbove = Math.max(0, estPosition - 1);
+        const tierLabel = estimateTierLabel(topPct);
         const maxLabel =
           row.range_maximum_balance === null || row.range_maximum_balance === undefined
             ? `+ ${current.asset_unit}`
             : amountLabel(row.range_maximum_balance, current.decimals, current.asset_unit);
         const band = `${amountLabel(row.range_minimum_balance, current.decimals, current.asset_unit)} - ${maxLabel}`;
+        const sortedPercentileRows = [...(current.account_percentile_rows || [])].sort(
+          (a, b) => Number(a.percentile) - Number(b.percentile)
+        );
+        const nextTarget = [...sortedPercentileRows]
+          .reverse()
+          .find((r) => Number(r.percentile) < topPct);
+        const needed = nextTarget
+          ? Math.max(0, Number(nextTarget.minimum_balance || 0) - baseAmount)
+          : 0;
 
-        document.getElementById("rankText").textContent = `Top ${fmtPct(topPct)}`;
-        document.getElementById("rankDesc").textContent = `${holding.toLocaleString()} ${
-          current.asset_unit
-        } sits in the ${band} band (~${fmtInt(row.account_count)} wallets).`;
+        document.getElementById("rankPosition").textContent = `#${fmtInt(estPosition)}`;
+        document.getElementById("rankPercentile").textContent = `Top ${fmtPct(topPct)}`;
+        document.getElementById("rankTier").textContent = tierLabel;
         document.getElementById(
-          "rankSub"
-        ).textContent = `≈ ${fmtPct(sharePct, 6)} of ${current.basis_label}; computed from ${
-          fmtInt(current.holder_count)
-        } funded wallets.`;
+          "rankBand"
+        ).textContent = `Band: ${band} (~${fmtInt(row.account_count)} wallets)`;
+        document.getElementById("rankShare").textContent = `Share of supply: ${fmtPct(
+          sharePct,
+          6
+        )} of ${current.basis_label}`;
+        document.getElementById("rankAbove").textContent = `Wallets above you: ${fmtInt(walletsAbove)}`;
+        document.getElementById("rankAvgBand").textContent = `Average in your band: ${amountLabel(
+          row.average_balance,
+          current.decimals,
+          current.asset_unit
+        )}`;
+        document.getElementById("rankNextTarget").textContent = nextTarget
+          ? `Next target: Need about ${amountLabel(
+              needed,
+              current.decimals,
+              current.asset_unit
+            )} more to reach Top ${nextTarget.percentile}%`
+          : "Next target: You are already in the highest tracked tier.";
+        document.getElementById("resultCard").classList.remove("hidden");
+        status.textContent = `Rank calculated for ${holding.toLocaleString()} ${current.asset_unit}.`;
       };
 
       const loadData = async () => {
@@ -221,7 +354,7 @@
           const resp = await fetch(path);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           current = await resp.json();
-          render();
+          renderTierTable();
           status.textContent = `Loaded ${current.asset_name} (${current.asset_unit}) rich-list snapshot.`;
         } catch (err) {
           status.textContent = `Failed to load data: ${err.message}`;
@@ -229,7 +362,10 @@
       };
 
       document.getElementById("loadBtn").addEventListener("click", loadData);
-      document.getElementById("recalcBtn").addEventListener("click", render);
+      document.getElementById("checkRankBtn").addEventListener("click", checkRank);
+      document.getElementById("holdingInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") checkRank();
+      });
       loadData();
     </script>
   </body>
