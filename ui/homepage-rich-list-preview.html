@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rich List Homepage Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1118;
+        --panel: #171b29;
+        --panel-soft: #1e2436;
+        --border: #36405b;
+        --text: #f0f4ff;
+        --muted: #a8b0c6;
+        --accent: #4f8cff;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 22px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 30px;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: var(--muted);
+      }
+
+      .controls,
+      .hero,
+      .tiers,
+      .footnote {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      input,
+      button {
+        background: var(--panel-soft);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 14px;
+        padding: 10px 12px;
+      }
+
+      input[type="text"] {
+        min-width: 280px;
+      }
+
+      .hero .label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .hero .rank {
+        font-size: 42px;
+        margin: 4px 0;
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .hero .desc {
+        font-size: 16px;
+      }
+
+      .hero .sub {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 10px;
+        text-align: left;
+      }
+
+      th {
+        background: var(--panel-soft);
+        font-size: 15px;
+      }
+
+      .footnote {
+        color: var(--muted);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Rich List Homepage Module (Recommended)</h1>
+      <p class="subtitle">Single hero percentile + compact tier table for easy homepage scanning.</p>
+
+      <section class="controls">
+        <input id="jsonPath" type="text" value="./sample-rich-list.json" />
+        <button id="loadBtn">Load JSON</button>
+        <input id="holdingInput" type="number" min="0" step="1" value="25000" />
+        <button id="recalcBtn">Recalculate Rank</button>
+      </section>
+
+      <section class="hero">
+        <div class="label">Your holder rank</div>
+        <div class="rank" id="rankText">Top --%</div>
+        <div class="desc" id="rankDesc">Enter a holding amount.</div>
+        <div class="sub" id="rankSub"></div>
+      </section>
+
+      <section class="tiers">
+        <table>
+          <thead>
+            <tr>
+              <th>Tier</th>
+              <th>Min balance to qualify</th>
+              <th>Approx # wallets</th>
+            </tr>
+          </thead>
+          <tbody id="tierBody"></tbody>
+        </table>
+      </section>
+
+      <section class="footnote" id="status"></section>
+    </main>
+
+    <script>
+      let current = null;
+      const tierTargets = [0.1, 0.5, 1, 5, 10];
+
+      const fmtInt = (n) => new Intl.NumberFormat("en-US").format(Number(n || 0));
+      const fmtPct = (n, d = 4) => `${Number(n || 0).toFixed(d)}%`;
+
+      const amountLabel = (raw, decimals, unit) => {
+        const value = Number(raw || 0) / 10 ** Number(decimals || 0);
+        return `${new Intl.NumberFormat("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: Number(decimals || 0),
+        }).format(value)} ${unit || ""}`.trim();
+      };
+
+      const findTierRow = (rows, target) =>
+        rows.find((r) => Math.abs(Number(r.percentile) - target) < 0.0000001) ||
+        [...rows].sort((a, b) => Math.abs(Number(a.percentile) - target) - Math.abs(Number(b.percentile) - target))[0];
+
+      const findRangeRow = (rows, amountBase) =>
+        rows.find((r) => {
+          const minOk = amountBase >= Number(r.range_minimum_balance || 0);
+          const max = r.range_maximum_balance;
+          const maxOk = max === null || max === undefined ? true : amountBase < Number(max);
+          return minOk && maxOk;
+        }) || rows[rows.length - 1];
+
+      const render = () => {
+        if (!current) return;
+        const tierBody = document.getElementById("tierBody");
+        tierBody.innerHTML = tierTargets
+          .map((target) => {
+            const row = findTierRow(current.account_percentile_rows || [], target);
+            return `<tr>
+                <td>Top ${target}%</td>
+                <td>${amountLabel(row.minimum_balance, current.decimals, current.asset_unit)}</td>
+                <td>${fmtInt(row.account_count)}</td>
+              </tr>`;
+          })
+          .join("");
+
+        const holding = Math.max(0, Number(document.getElementById("holdingInput").value || 0));
+        const baseAmount = Math.round(holding * 10 ** Number(current.decimals || 0));
+        const row = findRangeRow(current.balance_range_rows || [], baseAmount);
+        const topPct = Number(row.top_percentile_cutoff || 0);
+        const sharePct = (baseAmount / Number(current.basis_amount || 1)) * 100;
+        const maxLabel =
+          row.range_maximum_balance === null || row.range_maximum_balance === undefined
+            ? `+ ${current.asset_unit}`
+            : amountLabel(row.range_maximum_balance, current.decimals, current.asset_unit);
+        const band = `${amountLabel(row.range_minimum_balance, current.decimals, current.asset_unit)} - ${maxLabel}`;
+
+        document.getElementById("rankText").textContent = `Top ${fmtPct(topPct)}`;
+        document.getElementById("rankDesc").textContent = `${holding.toLocaleString()} ${
+          current.asset_unit
+        } sits in the ${band} band (~${fmtInt(row.account_count)} wallets).`;
+        document.getElementById(
+          "rankSub"
+        ).textContent = `≈ ${fmtPct(sharePct, 6)} of ${current.basis_label}; computed from ${
+          fmtInt(current.holder_count)
+        } funded wallets.`;
+      };
+
+      const loadData = async () => {
+        const status = document.getElementById("status");
+        try {
+          const path = document.getElementById("jsonPath").value.trim();
+          const resp = await fetch(path);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          current = await resp.json();
+          render();
+          status.textContent = `Loaded ${current.asset_name} (${current.asset_unit}) rich-list snapshot.`;
+        } catch (err) {
+          status.textContent = `Failed to load data: ${err.message}`;
+        }
+      };
+
+      document.getElementById("loadBtn").addEventListener("click", loadData);
+      document.getElementById("recalcBtn").addEventListener("click", render);
+      loadData();
+    </script>
+  </body>
+</html>
