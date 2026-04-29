@@ -49,49 +49,14 @@
         text-align: center;
       }
 
-      .hero-image-tools {
-        margin-top: 10px;
-        display: flex;
-        gap: 8px;
-        justify-content: center;
-        flex-wrap: wrap;
-      }
-
       .hero-image-wrap img {
         max-width: 100%;
-        width: 720px;
-        min-height: 180px;
+        width: 100%;
+        max-width: 860px;
         height: auto;
         border-radius: 10px;
         display: block;
         margin: 0 auto;
-      }
-
-      .hero-image-hidden {
-        display: none !important;
-      }
-
-      .hero-image-fallback {
-        display: none;
-        align-items: center;
-        justify-content: center;
-        min-height: 220px;
-        border: 1px dashed var(--border);
-        border-radius: 10px;
-        color: var(--muted);
-        font-size: 16px;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-      }
-
-      .hero-image-fallback.visible {
-        display: flex;
-      }
-
-      .hero-image-missing {
-        margin-top: 8px;
-        color: var(--warning);
-        font-size: 13px;
       }
 
       .controls,
@@ -214,16 +179,11 @@
   <body>
     <main class="container">
       <section class="hero-image-wrap">
-        <img id="heroImage" src="./algo-rich-list-hero.png" alt="ALGO Rich List hero image" />
-        <div class="hero-image-fallback" id="heroImageFallback">ALGO RICH LIST</div>
-        <div class="hero-image-tools">
-          <button id="heroUploadBtn" type="button">Upload hero image</button>
-          <input id="heroUploadInput" type="file" accept="image/*" hidden />
-        </div>
-        <div class="hero-image-missing" id="heroImageMissing" hidden>
-          Hero image not found. Add your image at <code>/workspace/ui/algo-rich-list-hero.png</code>
-          or use the Upload hero image button.
-        </div>
+        <img
+          id="heroImage"
+          src="https://i.ibb.co/GvcZbJ94/92-E9-DADD-1-E05-4-C2-C-8967-B2-ABF355-F207.png"
+          alt="ALGO Rich List hero image"
+        />
       </section>
 
       <h1>Rich List Homepage Module (Recommended)</h1>
@@ -295,16 +255,6 @@
     <script>
       let current = null;
       const tierTargets = [0.1, 0.5, 1, 5, 10];
-      const heroCandidates = [
-        "./algo-rich-list-hero.png",
-        "/ui/algo-rich-list-hero.png",
-        "/algo-rich-list-hero.png",
-        "../algo-rich-list-hero.png",
-        "./algo-rich-list-hero.webp",
-        "./algo-rich-list-hero.jpg",
-        "./algo-rich-list-hero.jpeg",
-      ];
-      let heroCandidateIndex = 0;
 
       const fmtInt = (n) => new Intl.NumberFormat("en-US").format(Number(n || 0));
       const fmtPct = (n, d = 4) => `${Number(n || 0).toFixed(d)}%`;
@@ -424,37 +374,6 @@
         status.textContent = `Rank calculated for ${holding.toLocaleString()} ${current.asset_unit}.`;
       };
 
-      const heroImage = document.getElementById("heroImage");
-      const heroImageMissing = document.getElementById("heroImageMissing");
-      const heroImageFallback = document.getElementById("heroImageFallback");
-
-      const showFallbackHero = () => {
-        heroImage.classList.add("hero-image-hidden");
-        heroImageFallback.classList.add("visible");
-      };
-
-      const showRealHero = () => {
-        heroImage.classList.remove("hero-image-hidden");
-        heroImageFallback.classList.remove("visible");
-      };
-
-      const tryNextHeroCandidate = () => {
-        heroCandidateIndex += 1;
-        if (heroCandidateIndex >= heroCandidates.length) {
-          showFallbackHero();
-          heroImageMissing.hidden = false;
-          return;
-        }
-        heroImage.src = heroCandidates[heroCandidateIndex];
-      };
-
-      const initHeroImage = () => {
-        heroCandidateIndex = 0;
-        heroImageMissing.hidden = true;
-        showRealHero();
-        heroImage.src = heroCandidates[heroCandidateIndex];
-      };
-
       const loadData = async () => {
         const status = document.getElementById("status");
         try {
@@ -474,23 +393,6 @@
       document.getElementById("holdingInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") checkRank();
       });
-      heroImage.addEventListener("load", () => {
-        showRealHero();
-        heroImageMissing.hidden = true;
-      });
-      heroImage.addEventListener("error", tryNextHeroCandidate);
-      document.getElementById("heroUploadBtn").addEventListener("click", () => {
-        document.getElementById("heroUploadInput").click();
-      });
-      document.getElementById("heroUploadInput").addEventListener("change", (event) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        const objectUrl = URL.createObjectURL(file);
-        heroImage.src = objectUrl;
-        showRealHero();
-        heroImageMissing.hidden = true;
-      });
-      initHeroImage();
       loadData();
     </script>
   </body>
