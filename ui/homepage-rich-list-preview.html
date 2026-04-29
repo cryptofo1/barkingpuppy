@@ -60,10 +60,32 @@
       .hero-image-wrap img {
         max-width: 100%;
         width: 720px;
+        min-height: 180px;
         height: auto;
         border-radius: 10px;
         display: block;
         margin: 0 auto;
+      }
+
+      .hero-image-hidden {
+        display: none !important;
+      }
+
+      .hero-image-fallback {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        min-height: 220px;
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 16px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .hero-image-fallback.visible {
+        display: flex;
       }
 
       .hero-image-missing {
@@ -193,6 +215,7 @@
     <main class="container">
       <section class="hero-image-wrap">
         <img id="heroImage" src="./algo-rich-list-hero.png" alt="ALGO Rich List hero image" />
+        <div class="hero-image-fallback" id="heroImageFallback">ALGO RICH LIST</div>
         <div class="hero-image-tools">
           <button id="heroUploadBtn" type="button">Upload hero image</button>
           <input id="heroUploadInput" type="file" accept="image/*" hidden />
@@ -403,10 +426,22 @@
 
       const heroImage = document.getElementById("heroImage");
       const heroImageMissing = document.getElementById("heroImageMissing");
+      const heroImageFallback = document.getElementById("heroImageFallback");
+
+      const showFallbackHero = () => {
+        heroImage.classList.add("hero-image-hidden");
+        heroImageFallback.classList.add("visible");
+      };
+
+      const showRealHero = () => {
+        heroImage.classList.remove("hero-image-hidden");
+        heroImageFallback.classList.remove("visible");
+      };
 
       const tryNextHeroCandidate = () => {
         heroCandidateIndex += 1;
         if (heroCandidateIndex >= heroCandidates.length) {
+          showFallbackHero();
           heroImageMissing.hidden = false;
           return;
         }
@@ -416,6 +451,7 @@
       const initHeroImage = () => {
         heroCandidateIndex = 0;
         heroImageMissing.hidden = true;
+        showRealHero();
         heroImage.src = heroCandidates[heroCandidateIndex];
       };
 
@@ -439,6 +475,7 @@
         if (event.key === "Enter") checkRank();
       });
       heroImage.addEventListener("load", () => {
+        showRealHero();
         heroImageMissing.hidden = true;
       });
       heroImage.addEventListener("error", tryNextHeroCandidate);
@@ -450,6 +487,7 @@
         if (!file) return;
         const objectUrl = URL.createObjectURL(file);
         heroImage.src = objectUrl;
+        showRealHero();
         heroImageMissing.hidden = true;
       });
       initHeroImage();
