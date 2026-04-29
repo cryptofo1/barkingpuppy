@@ -40,6 +40,30 @@
         color: var(--muted);
       }
 
+      .hero-image-wrap {
+        background: #05070e;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+
+      .hero-image-wrap img {
+        max-width: 100%;
+        width: 720px;
+        height: auto;
+        border-radius: 10px;
+        display: block;
+        margin: 0 auto;
+      }
+
+      .hero-image-missing {
+        margin-top: 8px;
+        color: var(--warning);
+        font-size: 13px;
+      }
+
       .controls,
       .rank-check,
       .result-card,
@@ -159,6 +183,13 @@
   </head>
   <body>
     <main class="container">
+      <section class="hero-image-wrap">
+        <img id="heroImage" src="./algo-rich-list-hero.png" alt="ALGO Rich List hero image" />
+        <div class="hero-image-missing" id="heroImageMissing" hidden>
+          Hero image not found. Add your image at <code>/workspace/ui/algo-rich-list-hero.png</code>.
+        </div>
+      </section>
+
       <h1>Rich List Homepage Module (Recommended)</h1>
       <p class="subtitle">Single hero percentile + compact tier table for easy homepage scanning.</p>
 
@@ -365,6 +396,9 @@
       document.getElementById("checkRankBtn").addEventListener("click", checkRank);
       document.getElementById("holdingInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") checkRank();
+      });
+      document.getElementById("heroImage").addEventListener("error", () => {
+        document.getElementById("heroImageMissing").hidden = false;
       });
       loadData();
     </script>
